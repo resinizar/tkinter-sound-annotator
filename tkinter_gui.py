@@ -1,9 +1,18 @@
+##################################################################################
+#    Gabriel Cano                                                                #
+##################################################################################
+#                                                                                #
+#                                                                                #
+#                                                                                #
+##################################################################################
+
 import tkinter as tk
 from PIL import Image, ImageTk
 import os
 import csv
 import sys
-import det_tools
+from playsound import playsound
+from det_tools import AudioClip
 
 
 
@@ -18,15 +27,21 @@ class SoundDetector:
             for filename in filenames:
                 if 'wav' in filename or 'WAV' in filename:
                     self.wav_files.append(filename)
-            # break  # activate this line if only top level of directory wanted
+            break  # activate this line if only top level of directory wanted
         self.file_ind = 0  # start index at 0 (incremented in next_ method)
         self.d_ind = 0  # start at 0 for each audio clip (incrememnted in save, reset in next_)
+        self.curr_clip = AudioClip(os.path.join(self.data_folder, self.curr_filename()))
 
         # variables for entry labels created in create_ui
         self.folder = tk.StringVar()
         self.filename = tk.StringVar()
         self.label = tk.StringVar()
         self.csv = tk.StringVar()
+
+        self.canvas = None # updated in create_ui
+        self.spec_h = 0  # updated in create_ui -> display_spec
+        self.clip_start = 0  # updated on click in mouse_down
+        self.curr_rect_id = None
         
         self.create_ui()
         self.set_defaults()
@@ -53,30 +68,65 @@ class SoundDetector:
         self.d_ind = 0  # reset to 0 for next file
         self.set_defaults()
 
+    def play(self):
+        playsound('temp.WAV')
+
     def exit(self):
         # save bookmark things? or ask if that is wanted?
         pass
 
+    # def create_rect(self, x1, y1, x2, y2, fill, alpha):
+    #     alpha = int(alpha * 255)
+    #     fill = self.root.winfo_rgb(fill) + (alpha,)
+    #     rect = Image.new('RGBA', (x2-x1, y2-y1), fill)
+    #     self.rect = rect =  ImageTk.PhotoImage(image=rect)
+    #     return self.canvas.create_image(x1, y1, image=rect, anchor='nw')
+
+    def mouse_down(self, event):
+        self.clip_start = int(self.canvas.canvasx(event.x))
+
+    def mouse_drag(self, event):
+        if self.curr_rect_id:
+            self.canvas.delete(self.curr_rect_id)
+
+        # self.curr_rect_id = self.create_rect(
+        #     self.clip_start, 0, event.x, self.spec_h,
+        #     fill='green', alpha=.8)
+
+        self.curr_rect_id = self.canvas.create_rectangle(
+            self.clip_start, 0, self.canvas.canvasx(event.x), self.spec_h,
+            fill='', outline='yellow')
+
+    def mouse_up(self, event):
+        clip_end = int(self.canvas.canvasx(event.x))
+        if clip_end < self.clip_start:
+            self.curr_clip.write_mini_clip('./temp.WAV', clip_end, self.clip_start)
+        else:
+            self.curr_clip.write_mini_clip('./temp.WAV', self.clip_start, clip_end)
+
     def display_spec(self):
-        full_filepath = os.path.join(self.data_folder, self.curr_filename())
-        spec, sr = det_tools.get_spec(full_filepath, frame_len=1024)
-        spec = (det_tools.norm(spec) * 255).astype('uint8')
-        self.img = img =  ImageTk.PhotoImage(image=Image.fromarray(spec))
+        self.img = img =  ImageTk.PhotoImage(image=Image.fromarray((self.curr_clip.spec * 255).astype('uint8')))
+        self.spec_h = img.height()
 
         frame = tk.Frame(self.root)
-        canvas = tk.Canvas(frame, width=1100, height=img.height(), bg='green')
-        scrollbar = tk.Scrollbar(frame, orient=tk.HORIZONTAL, command=canvas.xview)
-        canvas.config(xscrollcommand=scrollbar.set)
+        self.canvas = tk.Canvas(frame, width=1100, height=img.height(), bg='green')
+        scrollbar = tk.Scrollbar(frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
+        self.canvas.config(xscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-        canvas.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
+        self.canvas.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
 
-        canvas.config(scrollregion=(0, 0, img.width(), img.height()))
-        canvas.create_image(0, 0, image=img, anchor='nw')
+        self.canvas.config(scrollregion=(0, 0, img.width(), img.height()))
+        self.canvas.bind("<Button-1>", self.mouse_down)
+        self.canvas.bind("<B1-Motion>", self.mouse_drag)
+        self.canvas.bind("<ButtonRelease-1>", self.mouse_up)
+        self.canvas.create_image(0, 0, image=img, anchor='nw')
 
         frame.grid(row=0, columnspan=16)
 
     def create_ui(self):
         self.display_spec()
+
+        frame = tk.Frame(self.root)
 
         # create & place entry labels
         tk.Label(self.root, text='folder').grid(row=1, column=0, sticky='e')
@@ -94,6 +144,9 @@ class SoundDetector:
         tk.Button(self.root, text='save', command=self.save).grid(row=1, column=15)
         tk.Button(self.root, text='next', command=self.next_).grid(row=2, column=15)
         tk.Button(self.root, text='exit', command=self.exit).grid(row=3, column=15)
+
+        # play button
+        tk.Button(self.root, text='play selection', command=self.play).grid(row=2, column=10)
 
     def set_defaults(self):
         self.filename.set('d{}-{}.WAV'.format(self.curr_filename().split('.')[0], self.d_ind))
