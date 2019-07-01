@@ -8,16 +8,25 @@
 
 import numpy as np
 import librosa  # TODO: try removing librosa and using something else, too many dependencies
+from PIL import Image
 
+def resize_pil(img, max_w):
+    h, w = img.size
+    new_h = int(h * max_w / w)
+    return img.resize((new_h, max_w))
 
 
 class AudioClip:
     def __init__(self, filename, frame_len=1024):
         self.clip, self.sr = librosa.load(filename)
+
+        # creates spectrogram
         stft_clip = librosa.stft(self.clip, n_fft=frame_len, hop_length=frame_len//2+1)
         stft_mag, stft_ph = librosa.magphase(stft_clip)
-        stft_mag_db = librosa.amplitude_to_db(stft_mag)
-        self.spec = self.norm(stft_mag_db)
+        self.spec = librosa.amplitude_to_db(stft_mag)
+        self.spec = self.norm(self.spec)  # norm between 0 and 1
+        self.spec = self.spec[np.where(np.sum(self.spec, axis=1) > 1)]
+        self.spec = np.flipud(self.spec)  # flip so low sounds are on bottom
 
     @staticmethod
     def norm(spec):
