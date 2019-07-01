@@ -153,6 +153,12 @@ class SoundDetector:
         ttk.Button(frame, text='save', command=self.save).grid(row=1, column=3)
         ttk.Button(frame, text='next', command=self.next_).grid(row=1, column=4)
         ttk.Button(frame, text='exit', command=self.exit).grid(row=1, column=5)
+
+        # create key bindings for play, save, next, & exit
+        self.root.bind_all('<Command-KeyPress-p>', lambda _: self.play())
+        self.root.bind_all('<Command-KeyPress-s>', lambda _: self.save())
+        self.root.bind_all('<Command-KeyPress-n>', lambda _: self.next_())
+        self.root.bind_all('<Escape>', lambda _: self.exit())
         
         frame.pack(side=tk.BOTTOM, fill=tk.BOTH)
 
