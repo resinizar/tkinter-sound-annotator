@@ -19,9 +19,9 @@ import shutil
 
 
 class SoundDetector:
-    def __init__(self, root, audio_clip_folder, prev_f_ind=-1, prev_d_ind=0, prev_folder='', prev_csv='', prev_labels=[]):
+    def __init__(self, root, data_folder, save_folder, csv_filename, f_ind=-1, d_ind=0):
         self.root = root
-        self.data_folder = audio_clip_folder
+        self.data_folder = data_folder
 
         # get all wav files contained in given directory or subdirectories
         self.wav_files = []
@@ -32,8 +32,8 @@ class SoundDetector:
             break  # activate this line if only top level of directory wanted
 
         # saving folders
-        self.folder = prev_folder
-        self.csv = prev_csv
+        self.save_folder = save_folder
+        self.csv_filename = csv_filename
 
         # entry label variable
         self.label = tk.StringVar()
@@ -43,14 +43,14 @@ class SoundDetector:
         self.spec_h = 0
 
         # variables set elsewhere that change with each new clip
-        self.f_ind = prev_f_ind  # start index at 0 (incremented in next_ method)
+        self.f_ind = f_ind 
         self.curr_clip = AudioClip(os.path.join(self.data_folder, self.wav_files[self.f_ind]))
         self.canvas_img1 = None  # I have no idea why I need two, it works
         self.canvas_img2 = None
         self.temp = None  # used so tkinter doesn't delete the images for the spectrogram
 
         # variables set elsewhere that change while working on one clip
-        self.prev_d_ind = 0  # start at 0 for each audio clip (incrememnted in save, reset in next_)
+        self.d_ind = 0 
         self.clip_start = 0  # updated on click in mouse_down
         self.curr_rect_id = None
         
@@ -60,13 +60,16 @@ class SoundDetector:
     def curr_filename(self):
         return self.wav_files[self.f_ind]
 
+    def curr_save_filename(self):
+        return 'd{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind)
+
  # ---------------------------------------------------------------------------
 
     def save(self):
-        savepath = os.path.join(self.folder, 'd{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind))
+        savepath = os.path.join(self.save_folder, self.curr_save_filename())
         shutil.copy('./temp.wav', savepath)
 
-        with open(self.csv, 'a') as csvfile:
+        with open(os.path.join(self.save_folder, self.csv_filename), 'a') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([savepath, self.label.get()])
 
@@ -89,7 +92,7 @@ class SoundDetector:
 
     def exit(self):
         with open('bookmark.txt', 'w') as f:
-            values = ','.join([str(self.f_ind), str(self.d_ind), self.folder, self.filename, self.csv.get()])
+            values = ','.join([self.data_folder, self.save_folder, self.csv_filename, str(self.f_ind), str(self.d_ind)])
             print(values, file=f)
         self.root.destroy()
 
@@ -150,29 +153,32 @@ class SoundDetector:
         ttk.Button(frame, text='save', command=self.save).grid(row=1, column=3)
         ttk.Button(frame, text='next', command=self.next_).grid(row=1, column=4)
         ttk.Button(frame, text='exit', command=self.exit).grid(row=1, column=5)
-
+        
         frame.pack(side=tk.BOTTOM, fill=tk.BOTH)
 
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--in', dest='in_folder', type=str, 
-        help='The folder that has the audio clips.')
-    parser.add_argument('--out', dest='out_folder', type=str,
-        help='The folder where the labeled clips will be saved.')
-    parser.add_argument('--csvfile', dest='csvfile', type=str,
-        help='The full path and filename of the csvfile where data will be saved.')
-
-    args = parser.parse_args()
-
-    root = tk.Tk()
-
     try:
         with open('bookmark.txt', 'r') as f:
-            f_ind, d_ind, save_folder, filename, csv = f.readline().strip().split(',')
-            dtor = SoundDetector(root, args.in_folder, int(f_ind), int(d_ind), save_folder, filename, csv)
-    except FileNotFoundError: 
-        dtor = SoundDetector(root, datafolder)
+            data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
+
+            root = tk.Tk() 
+            dtor = SoundDetector(root, data_folder, save_folder, csv_filename, int(f_ind), int(d_ind))
+            root.mainloop()
+    except FileNotFoundError:
+
+        import argparse
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--in', dest='in_folder', type=str, 
+            help='The folder that has the audio clips.')
+        parser.add_argument('--out', dest='out_folder', type=str,
+            help='The folder where the labeled clips will be saved.')
+        parser.add_argument('--csvfile', dest='csvfile', type=str,
+            help='The full path and filename of the csvfile where data will be saved.')
+        args = parser.parse_args()
+
+        root = tk.Tk() 
+        dtor = SoundDetector(root, args.in_folder, args.out_folder, args.csvfile)
+        root.mainloop()
     
-    root.mainloop()
+    
