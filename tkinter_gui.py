@@ -31,15 +31,13 @@ class SoundDetector:
                     self.wav_files.append(filename)
             break  # activate this line if only top level of directory wanted
 
-        # variables for entry labels created in create_ui
-        self.folder = tk.StringVar()
-        self.filename = tk.StringVar()
-        self.label = tk.StringVar()
-        self.csv = tk.StringVar()
-        self.folder.set(self.data_folder[:-1] + '_dets')
-        self.csv.set(self.data_folder[:-1] + '_dets' + '/data.csv')
-        # self.label.set('b')
+        # saving folders
+        self.folder = prev_folder
+        self.csv = prev_csv
 
+        # entry label variable
+        self.label = tk.StringVar()
+        
         # variables set elsewhere that last the program lifetime
         self.canvas = None # updated in create_ui
         self.spec_h = 0
@@ -65,21 +63,19 @@ class SoundDetector:
  # ---------------------------------------------------------------------------
 
     def save(self):
-        savepath = os.path.join(self.folder.get(), self.filename.get())
+        savepath = os.path.join(self.folder, 'd{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind))
         shutil.copy('./temp.wav', savepath)
 
-        with open(self.csv.get(), 'a') as csvfile:
+        with open(self.csv, 'a') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow([savepath, self.label.get()])
 
         self.d_ind += 1
-        self.filename.set('d{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind))  # update filename
 
     def next_(self):
         self.f_ind += 1
         self.d_ind = 0  # reset to 0 for next file
         self.curr_clip = AudioClip(os.path.join(self.data_folder, self.curr_filename()))  # get audioclip
-        self.filename.set('d{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind))  # update filename
 
         viewable_pil = Image.fromarray((self.curr_clip.spec * 255).astype('uint8'))
         self.temp = img =  ImageTk.PhotoImage(image=viewable_pil)
@@ -93,7 +89,7 @@ class SoundDetector:
 
     def exit(self):
         with open('bookmark.txt', 'w') as f:
-            values = ','.join([str(self.f_ind), str(self.d_ind), self.folder.get(), self.filename.get(), self.csv.get()])
+            values = ','.join([str(self.f_ind), str(self.d_ind), self.folder, self.filename, self.csv.get()])
             print(values, file=f)
         self.root.destroy()
 
@@ -139,17 +135,11 @@ class SoundDetector:
 
         frame = ttk.Frame(self.root)
 
-        # create & place entry labels
-        ttk.Label(frame, text='folder').grid(row=1, column=0, sticky='e')
-        ttk.Label(frame, text='filename').grid(row=2, column=0, sticky='e')
-        ttk.Label(frame, text='label').grid(row=3, column=0, sticky='e')
-        ttk.Label(frame, text='csv file').grid(row=4, column=0, sticky='e')
+        # create & place entry label
+        ttk.Label(frame, text='label').grid(row=1, column=0, sticky='e')
 
-        # place blank entries
-        ttk.Entry(frame, textvariable=self.folder, width=60).grid(row=1, column=1, sticky='w')
-        ttk.Entry(frame, textvariable=self.filename, width=60).grid(row=2, column=1, sticky='w')
-        ttk.Entry(frame, textvariable=self.label, width=60).grid(row=3, column=1, sticky='w')
-        ttk.Entry(frame, textvariable=self.csv, width=60).grid(row=4, column=1, sticky='w')  
+        # place blank entry
+        ttk.Entry(frame, textvariable=self.label, width=20).grid(row=1, column=1, sticky='w')
 
         # create & place play button
         pil_img = resize_pil(Image.open('play_icon.png'), 20)
@@ -157,21 +147,31 @@ class SoundDetector:
         ttk.Button(frame, image=icon, command=self.play).grid(row=1, column=2)      
 
         # create & place far right side buttons
-        ttk.Button(frame, text='save', command=self.save).grid(row=2, column=2)
-        ttk.Button(frame, text='next', command=self.next_).grid(row=3, column=2)
-        ttk.Button(frame, text='exit', command=self.exit).grid(row=4, column=2)
+        ttk.Button(frame, text='save', command=self.save).grid(row=1, column=3)
+        ttk.Button(frame, text='next', command=self.next_).grid(row=1, column=4)
+        ttk.Button(frame, text='exit', command=self.exit).grid(row=1, column=5)
 
         frame.pack(side=tk.BOTTOM, fill=tk.BOTH)
 
 
 if __name__ == '__main__':
-    datafolder = sys.argv[1]
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--in', dest='in_folder', type=str, 
+        help='The folder that has the audio clips.')
+    parser.add_argument('--out', dest='out_folder', type=str,
+        help='The folder where the labeled clips will be saved.')
+    parser.add_argument('--csvfile', dest='csvfile', type=str,
+        help='The full path and filename of the csvfile where data will be saved.')
+
+    args = parser.parse_args()
+
     root = tk.Tk()
 
     try:
         with open('bookmark.txt', 'r') as f:
             f_ind, d_ind, save_folder, filename, csv = f.readline().strip().split(',')
-            dtor = SoundDetector(root, datafolder, int(f_ind), int(d_ind), save_folder, filename, csv)
+            dtor = SoundDetector(root, args.in_folder, int(f_ind), int(d_ind), save_folder, filename, csv)
     except FileNotFoundError: 
         dtor = SoundDetector(root, datafolder)
     
