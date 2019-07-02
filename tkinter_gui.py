@@ -18,9 +18,9 @@ import shutil
 
 
 
-class SoundDetector:
-    def __init__(self, root, data_folder, save_folder, csv_filename, f_ind=-1, d_ind=0):
-        self.root = root
+class AudioAnnotator:
+    def __init__(self, data_folder, save_folder, csv_filename, f_ind=0, d_ind=0):
+        self.root = root = tk.Tk()
         self.data_folder = data_folder
 
         # get all wav files contained in given directory or subdirectories
@@ -30,6 +30,7 @@ class SoundDetector:
                 if 'wav' in filename or 'WAV' in filename:
                     self.wav_files.append(filename)
             break  # activate this line if only top level of directory wanted
+        print(self.wav_files)
 
         # saving folders
         self.save_folder = save_folder
@@ -37,6 +38,9 @@ class SoundDetector:
 
         # entry label variable
         self.label = tk.StringVar()
+        self.info1 = tk.StringVar()
+        self.info2 = tk.StringVar()
+        self.info3 = tk.StringVar()
         
         # variables set elsewhere that last the program lifetime
         self.canvas = None # updated in create_ui
@@ -50,12 +54,16 @@ class SoundDetector:
         self.temp = None  # used so tkinter doesn't delete the images for the spectrogram
 
         # variables set elsewhere that change while working on one clip
-        self.d_ind = 0 
+        self.d_ind = d_ind
         self.clip_start = 0  # updated on click in mouse_down
         self.curr_rect_id = None
         
         self.create_ui()
-        self.next_()  # load everything you need to for each clip
+
+        self.info1.set('displaying file #{}'.format(self.f_ind))
+        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+
+        self.root.mainloop()
 
     def curr_filename(self):
         return self.wav_files[self.f_ind]
@@ -73,11 +81,18 @@ class SoundDetector:
             writer = csv.writer(csvfile)
             writer.writerow([savepath, self.label.get()])
 
-        self.d_ind += 1
+        self.info3.set('Saved last file as {} to {}'.format(self.label.get(), savepath))
+
+        self.d_ind += 1  
+        self.info2.set('working on mini clip #{}'.format(self.d_ind))
 
     def next_(self):
         self.f_ind += 1
-        self.d_ind = 0  # reset to 0 for next file
+        self.info1.set('displaying file #{}'.format(self.f_ind))
+
+        self.d_ind = 0  
+        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+
         self.curr_clip = AudioClip(os.path.join(self.data_folder, self.curr_filename()))  # get audioclip
 
         viewable_pil = Image.fromarray((self.curr_clip.spec * 255).astype('uint8'))
@@ -91,9 +106,7 @@ class SoundDetector:
         playsound('temp.wav')  # TODO: do on a diff thread
 
     def exit(self):
-        with open('bookmark.txt', 'w') as f:
-            values = ','.join([self.data_folder, self.save_folder, self.csv_filename, str(self.f_ind), str(self.d_ind)])
-            print(values, file=f)
+        SaveSessionPopup(self)
         self.root.destroy()
 
     # ---------------------------------------------------------------------------
@@ -115,6 +128,8 @@ class SoundDetector:
             self.curr_clip.write_mini_clip('./temp.wav', clip_end, self.clip_start)
         else:
             self.curr_clip.write_mini_clip('./temp.wav', self.clip_start, clip_end)
+
+    # ---------------------------------------------------------------------------
 
     def create_ui(self):
         viewable_pil = Image.fromarray((self.curr_clip.spec * 255).astype('uint8'))
@@ -154,6 +169,11 @@ class SoundDetector:
         ttk.Button(frame, text='next', command=self.next_).grid(row=1, column=4)
         ttk.Button(frame, text='exit', command=self.exit).grid(row=1, column=5)
 
+        # informational labels
+        ttk.Label(frame, textvariable=self.info1).grid(row=1, column=6)
+        ttk.Label(frame, textvariable=self.info2).grid(row=1, column=7)
+        ttk.Label(frame, textvariable=self.info3).grid(row=2, column=0, columnspan=8, sticky='w')
+
         # create key bindings for play, save, next, & exit
         self.root.bind_all('<Command-KeyPress-p>', lambda _: self.play())
         self.root.bind_all('<Command-KeyPress-s>', lambda _: self.save())
@@ -163,14 +183,40 @@ class SoundDetector:
         frame.pack(side=tk.BOTTOM, fill=tk.BOTH)
 
 
+class SaveSessionPopup():
+    def __init__(self, annotator):
+        self.annotator = annotator
+        self.root = tk.Tk()
+        frame = ttk.Frame(self.root)
+        ttk.Label(frame, text='save session?').grid(row=0, column=0, columnspan=2, sticky='w')
+        ttk.Button(frame, text='yes', command=self.save).grid(row=1, column=1)
+        ttk.Button(frame, text='no', command=self.exit).grid(row=1, column=2)
+        frame.pack()
+
+        frame.bind('<Command-KeyPress-s>', lambda _: self.save())
+        frame.bind('<Escape>', lambda _: self.exit())
+        self.root.mainloop()
+        self.root.destroy()
+
+    def save(self):
+        with open('savedsession.txt', 'w') as f:
+            values = ','.join([self.annotator.data_folder, 
+                                self.annotator.save_folder, 
+                                self.annotator.csv_filename, 
+                                str(self.annotator.f_ind), 
+                                str(self.annotator.d_ind)])
+            print(values, file=f)
+        self.root.quit()
+
+    def exit(self):
+        self.root.quit()
+
+
 if __name__ == '__main__':
     try:
-        with open('bookmark.txt', 'r') as f:
+        with open('savedsession.txt', 'r') as f:
             data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
-
-            root = tk.Tk() 
-            dtor = SoundDetector(root, data_folder, save_folder, csv_filename, int(f_ind), int(d_ind))
-            root.mainloop()
+            AudioAnnotator(data_folder, save_folder, csv_filename, int(f_ind), int(d_ind))
     except FileNotFoundError:
 
         import argparse
@@ -183,8 +229,6 @@ if __name__ == '__main__':
             help='The full path and filename of the csvfile where data will be saved.')
         args = parser.parse_args()
 
-        root = tk.Tk() 
-        dtor = SoundDetector(root, args.in_folder, args.out_folder, args.csvfile)
-        root.mainloop()
+        AudioAnnotator(args.in_folder, args.out_folder, args.csvfile)
     
     
