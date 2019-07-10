@@ -218,7 +218,7 @@ class AudioAnnotator:
         ttk.Entry(frame, textvariable=self.label, width=20).grid(row=1, column=1, sticky='w')
 
         # create & place play button
-        pil_img = resize_pil(Image.open('play_icon.png'), 20)
+        pil_img = resize_pil(Image.open('./support/play_icon.png'), 20)
         self.icon = icon = ImageTk.PhotoImage(image=pil_img)
         ttk.Button(frame, image=icon, command=self.play).grid(row=1, column=2)      
 
@@ -260,7 +260,7 @@ class SaveSessionPopup():
         self.root.destroy()
 
     def save(self):
-        with open('savedsession.txt', 'w') as f:
+        with open('./support/savedsession.txt', 'w') as f:
             values = ','.join([self.annotator.data_folder, 
                                 self.annotator.save_folder, 
                                 self.annotator.csv_filename, 
@@ -312,7 +312,7 @@ class AudioClip:
 
 if __name__ == '__main__':
     try:
-        with open('savedsession.txt', 'r') as f:
+        with open('./support/savedsession.txt', 'r') as f:
             data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
             AudioAnnotator(data_folder, save_folder, csv_filename, int(f_ind), int(d_ind))
     except FileNotFoundError:
