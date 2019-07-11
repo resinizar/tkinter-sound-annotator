@@ -38,10 +38,10 @@ class AudioAnnotator:
         self.csv_filename = csv_filename
 
         # entry label variable
-        self.label = tk.StringVar()
-        self.info1 = tk.StringVar()
-        self.info2 = tk.StringVar()
-        self.info3 = tk.StringVar()
+        self.tag = tk.StringVar()
+        self.show_filename = tk.StringVar()
+        self.show_mini = tk.StringVar()
+        self.show_saved = tk.StringVar()
         
         # variables set elsewhere that last the program lifetime
         self.canvas = None # updated in create_ui
@@ -61,8 +61,8 @@ class AudioAnnotator:
         
         self.create_ui()
 
-        self.info1.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
-        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+        self.show_filename.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
+        self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
         self.root.mainloop()
 
@@ -80,12 +80,12 @@ class AudioAnnotator:
 
         with open(os.path.join(self.save_folder, self.csv_filename), 'a') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow([savepath, self.label.get()])
+            writer.writerow([savepath, self.tag.get()])
 
-        self.info3.set('Saved last file as {} to {}'.format(self.label.get(), savepath))
+        self.show_saved.set('Saved last file as {} to {}'.format(self.tag.get(), savepath))
 
         self.d_ind += 1  
-        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+        self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
     def undo(self):
         curr_filename = self.curr_save_filename()
@@ -103,14 +103,14 @@ class AudioAnnotator:
             writer = csv.writer(csvfile)
             writer.writerows(rows[:-1])
 
-        self.info3.set('Erased {}'.format(os.path.join(self.save_folder, prev_file)))
+        self.show_saved.set('Erased {}'.format(os.path.join(self.save_folder, prev_file)))
 
         self.d_ind -= 1  
-        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+        self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
     def prev(self):
         self.f_ind -= 1
-        self.info1.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
+        self.show_filename.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
 
         # figure out what next d_ind should be
         highest = -1
@@ -121,7 +121,7 @@ class AudioAnnotator:
                     highest = cpy(ind)
 
         self.d_ind = highest + 1
-        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+        self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
         self.curr_clip = AudioClip(os.path.join(self.data_folder, self.curr_filename()))  # get audioclip
 
@@ -136,7 +136,7 @@ class AudioAnnotator:
 
     def next_(self):
         self.f_ind += 1
-        self.info1.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
+        self.show_filename.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
 
         # figure out what next d_ind should be
         highest = -1
@@ -147,7 +147,7 @@ class AudioAnnotator:
                     highest = cpy(ind)
 
         self.d_ind = highest + 1
-        self.info2.set('working on mini clip #{}'.format(self.d_ind))
+        self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
         self.curr_clip = AudioClip(os.path.join(self.data_folder, self.curr_filename()))  # get audioclip
 
@@ -211,11 +211,11 @@ class AudioAnnotator:
 
         frame = ttk.Frame(self.root)
 
-        # create & place entry label
-        ttk.Label(frame, text='label').grid(row=1, column=0, sticky='e')
+        # create & place entry for tag
+        ttk.Label(frame, text='tag').grid(row=1, column=0, sticky='e')
 
         # place blank entry
-        ttk.Entry(frame, textvariable=self.label, width=20).grid(row=1, column=1, sticky='w')
+        ttk.Entry(frame, textvariable=self.tag, width=20).grid(row=1, column=1, sticky='w')
 
         # create & place play button
         pil_img = resize_pil(Image.open('./support/play_icon.png'), 20)
@@ -229,9 +229,9 @@ class AudioAnnotator:
         ttk.Button(frame, text='exit', command=self.exit).grid(row=1, column=6)
 
         # informational labels
-        ttk.Label(frame, textvariable=self.info1).grid(row=1, column=7)
-        ttk.Label(frame, textvariable=self.info2).grid(row=1, column=8)
-        ttk.Label(frame, textvariable=self.info3).grid(row=2, column=0, columnspan=8, sticky='w')
+        ttk.Label(frame, textvariable=self.show_filename).grid(row=1, column=7)
+        ttk.Label(frame, textvariable=self.show_mini).grid(row=1, column=8)
+        ttk.Label(frame, textvariable=self.show_saved).grid(row=2, column=0, columnspan=8, sticky='w')
 
         # create key bindings for play, save, next, & exit
         self.root.bind_all('<Command-KeyPress-p>', lambda _: self.play())
