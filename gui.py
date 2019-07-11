@@ -310,6 +310,12 @@ class AudioClip:
         librosa.output.write_wav(filename, mini, self.sr)
 
 
+def resize_pil(img, max_w):
+    h, w = img.size
+    new_h = int(h * max_w / w)
+    return img.resize((new_h, max_w))
+
+
 if __name__ == '__main__':
     try:
         with open('./support/savedsession.txt', 'r') as f:
