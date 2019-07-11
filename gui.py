@@ -322,16 +322,18 @@ if __name__ == '__main__':
             data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
             AudioAnnotator(data_folder, save_folder, csv_filename, int(f_ind), int(d_ind))
     except FileNotFoundError:
-
         import argparse
         parser = argparse.ArgumentParser()
-        parser.add_argument('--in', dest='in_folder', type=str, 
-            help='The folder that has the audio clips.')
-        parser.add_argument('--out', dest='out_folder', type=str,
-            help='The folder where the labeled clips will be saved.')
-        parser.add_argument('--csvfile', dest='csvfile', type=str,
-            help='The full path and filename of the csvfile where data will be saved.')
+        parser.add_argument('datapath', type=str, 
+            help='Full path to folder with audio clips.')
+        parser.add_argument('savepath', type=str,
+            help='Full path to folder where new clips will be saved.')
+        parser.add_argument('csvfile', type=str,
+            help='The full path and filename of the csvfile where data tags will be saved.')
         args = parser.parse_args()
+
+        if '.csv' not in args.csvfile:
+            raise Exception('must be a csvfile (got {})'.format(args.csvfile))
 
         AudioAnnotator(args.in_folder, args.out_folder, args.csvfile)
     
