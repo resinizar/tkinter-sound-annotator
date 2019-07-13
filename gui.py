@@ -21,9 +21,10 @@ import numpy as np
 
 
 class AudioAnnotator:
-    def __init__(self, data_folder, save_folder, csv_filename, f_ind=0, d_ind=0):
+    def __init__(self, data_folder, save_folder, csv_filename, ss_fp, f_ind=0, d_ind=0):
         self.root = root = tk.Tk()
         self.data_folder = data_folder
+        self.ss_fp = ss_fp
 
         # get all wav files contained in given directory or subdirectories
         self.wav_files = []
@@ -70,13 +71,13 @@ class AudioAnnotator:
         return self.wav_files[self.f_ind]
 
     def curr_save_filename(self):
-        return 'd{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind)
+        return 'v{}-{}.wav'.format(self.curr_filename().split('.')[0], self.d_ind)
 
  # ---------------------------------------------------------------------------
 
     def save(self):
         savepath = os.path.join(self.save_folder, self.curr_save_filename())
-        shutil.copy('./temp.wav', savepath)
+        shutil.copy('./support/temp.wav', savepath)
 
         with open(os.path.join(self.save_folder, self.csv_filename), 'a') as csvfile:
             writer = csv.writer(csvfile)
@@ -87,26 +88,26 @@ class AudioAnnotator:
         self.d_ind += 1  
         self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
-    def undo(self):
-        curr_filename = self.curr_save_filename()
-        prev_file_ind = str(int(curr_filename.split('.')[0].split('-')[-1]) - 1)
-        prev_file = self.curr_save_filename().split('-')[0] + '-' + prev_file_ind + '.wav'
-        os.remove(os.path.join(self.save_folder, prev_file))
+    # def undo(self):
+    #     curr_filename = self.curr_save_filename()
+    #     prev_file_ind = str(int(curr_filename.split('.')[0].split('-')[-1]) - 1)
+    #     prev_file = self.curr_save_filename().split('-')[0] + '-' + prev_file_ind + '.wav'
+    #     os.remove(os.path.join(self.save_folder, prev_file))
 
-        with open(os.path.join(self.save_folder, self.csv_filename), 'r') as csvfile:
-            r = csv.reader(csvfile)
-            rows = []
-            for row in r:
-                rows.append(row)
+    #     with open(os.path.join(self.save_folder, self.csv_filename), 'r') as csvfile:
+    #         r = csv.reader(csvfile)
+    #         rows = []
+    #         for row in r:
+    #             rows.append(row)
 
-        with open(os.path.join(self.save_folder, self.csv_filename), 'w') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerows(rows[:-1])
+    #     with open(os.path.join(self.save_folder, self.csv_filename), 'w') as csvfile:
+    #         writer = csv.writer(csvfile)
+    #         writer.writerows(rows[:-1])
 
-        self.show_saved.set('Erased {}'.format(os.path.join(self.save_folder, prev_file)))
+    #     self.show_saved.set('Erased {}'.format(os.path.join(self.save_folder, prev_file)))
 
-        self.d_ind -= 1  
-        self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
+    #     self.d_ind -= 1  
+    #     self.show_mini.set('working on mini clip #{}'.format(self.d_ind))
 
     def prev(self):
         self.f_ind -= 1
@@ -115,7 +116,7 @@ class AudioAnnotator:
         # figure out what next d_ind should be
         highest = -1
         for filename in os.listdir(self.save_folder):
-            if self.curr_filename().split('.')[0] in filename:  # if detection pertains to current file
+            if self.curr_filename().split('.')[0] in filename:  # if voc pertains to current file
                 ind = int(filename.split('-')[-1].split('.')[0])
                 if ind > highest:
                     highest = cpy(ind)
@@ -141,7 +142,7 @@ class AudioAnnotator:
         # figure out what next d_ind should be
         highest = -1
         for filename in os.listdir(self.save_folder):
-            if self.curr_filename().split('.')[0] in filename:  # if detection pertains to current file
+            if self.curr_filename().split('.')[0] in filename:  # if voc pertains to current file
                 ind = int(filename.split('-')[-1].split('.')[0])
                 if ind > highest:
                     highest = cpy(ind)
@@ -159,7 +160,7 @@ class AudioAnnotator:
             self.canvas.delete(self.curr_rect_id)
 
     def play(self):
-        playsound('temp.wav')  # TODO: do on a diff thread
+        playsound('./support/temp.wav')  # TODO: do on a diff thread
 
     def exit(self):
         SaveSessionPopup(self)
@@ -181,9 +182,9 @@ class AudioAnnotator:
     def mouse_up(self, event):
         clip_end = int(self.canvas.canvasx(event.x))
         if clip_end < self.clip_start:
-            self.curr_clip.write_mini_clip('./temp.wav', clip_end, self.clip_start)
+            self.curr_clip.write_mini_clip('./support/temp.wav', clip_end, self.clip_start)
         else:
-            self.curr_clip.write_mini_clip('./temp.wav', self.clip_start, clip_end)
+            self.curr_clip.write_mini_clip('./support/temp.wav', self.clip_start, clip_end)
 
     # ---------------------------------------------------------------------------
 
@@ -193,7 +194,7 @@ class AudioAnnotator:
         self.spec_h = img.height()
 
         frame = ttk.Frame(self.root)
-        self.canvas = tk.Canvas(frame, width=1250, height=img.height(), bg='white')
+        self.canvas = tk.Canvas(frame, width=800, height=img.height(), bg='white')
         scrollbar = ttk.Scrollbar(frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
         self.canvas.config(xscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
@@ -207,31 +208,35 @@ class AudioAnnotator:
 
         # self.canvas.bind_all('<MouseWheel>', lambda e: self.canvas.xview_scroll(-1 * e.delta, 'units'))
 
-        frame.pack(side=tk.TOP)
+        frame.pack(side=tk.TOP, fill=tk.BOTH)
 
         frame = ttk.Frame(self.root)
 
         # create & place entry for tag
-        ttk.Label(frame, text='tag').grid(row=1, column=0, sticky='e')
+        ttk.Label(frame, text='tag').pack(side=tk.LEFT)
 
-        # place blank entry
-        ttk.Entry(frame, textvariable=self.tag, width=20).grid(row=1, column=1, sticky='w')
+        # place blank entry & label saying which mini clip
+        ttk.Entry(frame, textvariable=self.tag, width=20).pack(side=tk.LEFT)
+        ttk.Label(frame, textvariable=self.show_mini).pack(side=tk.LEFT)
+
+        # create & place far right side buttons
+        ttk.Button(frame, text='exit', command=self.exit).pack(side=tk.RIGHT)
+        ttk.Button(frame, text='next', command=self.next_).pack(side=tk.RIGHT)
+        ttk.Button(frame, text='back', command=self.prev).pack(side=tk.RIGHT)
+        ttk.Button(frame, text='save', command=self.save).pack(side=tk.RIGHT)
 
         # create & place play button
         pil_img = resize_pil(Image.open('./support/play_icon.png'), 20)
         self.icon = icon = ImageTk.PhotoImage(image=pil_img)
-        ttk.Button(frame, image=icon, command=self.play).grid(row=1, column=2)      
+        ttk.Button(frame, image=icon, command=self.play).pack(side=tk.RIGHT)
 
-        # create & place far right side buttons
-        ttk.Button(frame, text='save', command=self.save).grid(row=1, column=3)
-        ttk.Button(frame, text='back', command=self.prev).grid(row=1, column=4)
-        ttk.Button(frame, text='next', command=self.next_).grid(row=1, column=5)
-        ttk.Button(frame, text='exit', command=self.exit).grid(row=1, column=6)
+        frame.pack(fill=tk.BOTH)
+
+        frame = ttk.Frame(self.root)
 
         # informational labels
-        ttk.Label(frame, textvariable=self.show_filename).grid(row=1, column=7)
-        ttk.Label(frame, textvariable=self.show_mini).grid(row=1, column=8)
-        ttk.Label(frame, textvariable=self.show_saved).grid(row=2, column=0, columnspan=8, sticky='w')
+        ttk.Label(frame, textvariable=self.show_filename).pack(side=tk.LEFT, anchor='se')
+        ttk.Label(frame, textvariable=self.show_saved).pack(side=tk.RIGHT, anchor='sw')
 
         # create key bindings for play, save, next, & exit
         self.root.bind_all('<Command-KeyPress-p>', lambda _: self.play())
@@ -241,7 +246,7 @@ class AudioAnnotator:
         self.root.bind_all('<Command-KeyPress-b>', lambda _: self.prev())
         self.root.bind_all('<Escape>', lambda _: self.exit())
         
-        frame.pack(side=tk.BOTTOM, fill=tk.BOTH)
+        frame.pack(fill=tk.BOTH)
 
 
 class SaveSessionPopup():
@@ -260,7 +265,7 @@ class SaveSessionPopup():
         self.root.destroy()
 
     def save(self):
-        with open('./support/savedsession.txt', 'w') as f:
+        with open(self.annotator.ss_fp, 'w') as f:
             values = ','.join([self.annotator.data_folder, 
                                 self.annotator.save_folder, 
                                 self.annotator.csv_filename, 
@@ -317,24 +322,29 @@ def resize_pil(img, max_w):
 
 
 if __name__ == '__main__':
-    try:
-        with open('./support/savedsession.txt', 'r') as f:
-            data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
-            AudioAnnotator(data_folder, save_folder, csv_filename, int(f_ind), int(d_ind))
-    except FileNotFoundError:
+    import sys
+    if len(sys.argv) < 2:
+        print('You must supply either a saved session textfile or the datapath, savepath, and csvfilename. See python gui.py -h for more info.')
+    else:
         import argparse
         parser = argparse.ArgumentParser()
-        parser.add_argument('datapath', type=str, 
+        parser.add_argument('-d', dest='datapath', type=str, 
             help='Full path to folder with audio clips.')
-        parser.add_argument('savepath', type=str,
-            help='Full path to folder where new clips will be saved.')
-        parser.add_argument('csvfile', type=str,
+        parser.add_argument('-s', dest='savepath', type=str,
+            help='Full path to existing folder where new clips will be saved.')
+        parser.add_argument('-f', dest='csvfile', type=str,
             help='The full path and filename of the csvfile where data tags will be saved.')
+        parser.add_argument('-t', dest='savesession', default='savedsession2.txt', type=str,
+            help='The filepath of the saved session you want to save.')
+        parser.add_argument('-l', dest='loadsession', type=str,
+            help='The filepath of the saved session you want to load. This will be overwritten in next save.')
         args = parser.parse_args()
 
-        if '.csv' not in args.csvfile:
-            raise Exception('must be a csvfile (got {})'.format(args.csvfile))
-
-        AudioAnnotator(args.in_folder, args.out_folder, args.csvfile)
-    
-    
+        if args.loadsession is not None:  # if provided with a session to load
+            with open(args.loadsession, 'r') as f:
+                data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
+                AudioAnnotator(data_folder, save_folder, csv_filename, args.loadsession, int(f_ind), int(d_ind))
+        else:
+            if '.csv' not in args.csvfile:
+                raise Exception('must be a csvfile (got {})'.format(args.csvfile))
+            AudioAnnotator(args.datapath, args.savepath, args.csvfile, args.savesession)
