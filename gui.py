@@ -17,14 +17,17 @@ import shutil
 from copy import deepcopy as cpy
 import librosa
 import numpy as np
+from math import ceil
 
 
 
 class AudioAnnotator:
-    def __init__(self, data_folder, save_folder, csv_filename, ss_fp, f_ind=0, d_ind=0):
-        self.root = root = tk.Tk()
+    def __init__(self, data_folder, save_folder, csv_filename, ss_fp, min_dur, f_ind=0, d_ind=0):
+        self.root = tk.Tk()
+        self.root.title('sound annotator')
         self.data_folder = data_folder
         self.ss_fp = ss_fp
+        self.min_dur = min_dur
 
         # get all wav files contained in given directory or subdirectories
         self.wav_files = []
@@ -58,6 +61,7 @@ class AudioAnnotator:
         # variables set elsewhere that change while working on one clip
         self.d_ind = d_ind
         self.clip_start = 0  # updated on click in mouse_down
+        self.clip_end = 0  # updated in mouse_up
         self.curr_rect_id = None
         
         self.create_ui()
@@ -77,6 +81,7 @@ class AudioAnnotator:
 
     def save(self):
         savepath = os.path.join(self.save_folder, self.curr_save_filename())
+
         shutil.copy('./support/temp.wav', savepath)
 
         with open(os.path.join(self.save_folder, self.csv_filename), 'a') as csvfile:
@@ -137,6 +142,10 @@ class AudioAnnotator:
 
     def next_(self):
         self.f_ind += 1
+        if self.f_ind >= len(self.wav_files):
+            self.show_saved.set('No more wav files. You are done!')
+            self.f_ind -= 1
+
         self.show_filename.set('displaying file #{} ({})'.format(self.f_ind, self.curr_filename()))
 
         # figure out what next d_ind should be
@@ -180,11 +189,11 @@ class AudioAnnotator:
             fill='', outline='yellow')
 
     def mouse_up(self, event):
-        clip_end = int(self.canvas.canvasx(event.x))
-        if clip_end < self.clip_start:
-            self.curr_clip.write_mini_clip('./support/temp.wav', clip_end, self.clip_start)
+        self.clip_end = int(self.canvas.canvasx(event.x))
+        if self.clip_end < self.clip_start:
+            self.curr_clip.write_mini_clip('./support/temp.wav', self.clip_end, self.clip_start, self.min_dur)
         else:
-            self.curr_clip.write_mini_clip('./support/temp.wav', self.clip_start, clip_end)
+            self.curr_clip.write_mini_clip('./support/temp.wav', self.clip_start, self.clip_end, self.min_dur)
 
     # ---------------------------------------------------------------------------
 
@@ -253,6 +262,7 @@ class SaveSessionPopup():
     def __init__(self, annotator):
         self.annotator = annotator
         self.root = tk.Tk()
+        self.root.title('sound annotator')
         frame = ttk.Frame(self.root)
         ttk.Label(frame, text='save session?').grid(row=0, column=0, columnspan=2, sticky='w')
         ttk.Button(frame, text='yes', command=self.save).grid(row=1, column=1)
@@ -269,6 +279,7 @@ class SaveSessionPopup():
             values = ','.join([self.annotator.data_folder, 
                                 self.annotator.save_folder, 
                                 self.annotator.csv_filename, 
+                                str(self.annotator.min_dur),
                                 str(self.annotator.f_ind), 
                                 str(self.annotator.d_ind)])
             print(values, file=f)
@@ -300,7 +311,7 @@ class AudioClip:
         max_num = np.amax(spec)
         return np.divide(np.add(spec, -min_num), max_num-min_num)
 
-    def write_mini_clip(self, filename, start_spec, end_spec):
+    def write_mini_clip(self, filename, start_spec, end_spec, min_dur=None):
         """
         filename - string - the full filepath to save the clip
         start_ind - int - the desired starting place in spec
@@ -311,7 +322,12 @@ class AudioClip:
         start = int(start_spec * len(self.clip) / spec_w)
         end   = int(end_spec   * len(self.clip) / spec_w)
 
-        mini = self.clip[start:end]
+        dur = (end - start) / self.sr
+        if min_dur and dur < min_dur:
+            pad_len = ceil((min_dur - dur) / 2 * self.sr)
+            mini = self.clip[start - pad_len:end + pad_len]
+        else:
+            mini = self.clip[start:end]
         librosa.output.write_wav(filename, mini, self.sr)
 
 
@@ -334,17 +350,19 @@ if __name__ == '__main__':
             help='Full path to existing folder where new clips will be saved.')
         parser.add_argument('-f', dest='csvfile', type=str,
             help='The full path and filename of the csvfile where data tags will be saved.')
-        parser.add_argument('-t', dest='savesession', default='savedsession2.txt', type=str,
+        parser.add_argument('-t', dest='savesession', default='./support/ss.txt', type=str,
             help='The filepath of the saved session you want to save.')
         parser.add_argument('-l', dest='loadsession', type=str,
             help='The filepath of the saved session you want to load. This will be overwritten in next save.')
+        parser.add_argument('-m', dest='min_dur', default=1.0, type=float,
+            help='The minimum duration in seconds of a miniclip.')
         args = parser.parse_args()
 
         if args.loadsession is not None:  # if provided with a session to load
             with open(args.loadsession, 'r') as f:
-                data_folder, save_folder, csv_filename, f_ind, d_ind = f.readline().strip().split(',')
-                AudioAnnotator(data_folder, save_folder, csv_filename, args.loadsession, int(f_ind), int(d_ind))
+                data_folder, save_folder, csv_filename, min_dur, f_ind, d_ind = f.readline().strip().split(',')
+                AudioAnnotator(data_folder, save_folder, csv_filename, args.loadsession, float(min_dur), int(f_ind), int(d_ind))
         else:
             if '.csv' not in args.csvfile:
                 raise Exception('must be a csvfile (got {})'.format(args.csvfile))
-            AudioAnnotator(args.datapath, args.savepath, args.csvfile, args.savesession)
+            AudioAnnotator(args.datapath, args.savepath, args.csvfile, args.savesession, args.min_dur)
